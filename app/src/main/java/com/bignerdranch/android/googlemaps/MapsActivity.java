@@ -17,6 +17,9 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -53,11 +56,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         LocationListener {
 
     private GoogleMap mMap;
+    private boolean isBusRouteShown;
     ArrayList<LatLng> MarkerPoints;
     GoogleApiClient mGoogleApiClient;
     Location mLastLocation;
     Marker mCurrLocationMarker;
     LocationRequest mLocationRequest;
+    private EditText searchField;
 
     private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
     private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
@@ -77,6 +82,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Toolbar myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
 
+        searchField=(EditText) findViewById(R.id.search);
+        searchField.setVisibility(View.INVISIBLE);
+
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkLocationPermission();
         }
@@ -94,12 +102,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         inflater.inflate(R.menu.options_menu, menu);
 
         // Associate searchable configuration with the SearchView
-        SearchManager searchManager =
-                (SearchManager) getSystemService(Context.SEARCH_SERVICE);
-        SearchView searchView =
-                (SearchView) menu.findItem(R.id.search).getActionView();
-        searchView.setSearchableInfo(
-                searchManager.getSearchableInfo(getComponentName()));
+
         return true;
     }
 
@@ -112,6 +115,52 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_settings:
+                // User chose the "Settings" item, show the app settings UI...
+                return true;
+
+            case R.id.bus_route:
+                // User chose the "Favorite" action, mark the current item
+                // as a favorite...
+
+                mMap.addMarker(new MarkerOptions().position(MAIN_GATE)
+                        .title("Main Gate"));
+                mMap.addMarker(new MarkerOptions().position(VELACHERY_GATE)
+                        .title("Velachery Gate"));
+                mMap.addMarker(new MarkerOptions().position(JAM_BUS_STOP)
+                        .title("Jamuna Hostel Bus Stop"));
+
+                MarkerPoints.add(MAIN_GATE);
+                MarkerPoints.add(JAM_BUS_STOP);
+
+                LatLng origin = MarkerPoints.get(0);
+                LatLng dest = MarkerPoints.get(1);
+
+
+                // Getting URL to the Google Directions API
+                String url = getUrl(origin, dest);
+                Log.d("onMapClick", url.toString());
+                FetchUrl FetchUrl = new FetchUrl();
+
+                // Start downloading json data from Google Directions API
+                FetchUrl.execute(url);
+                //move map camera
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(origin));
+                mMap.animateCamera(CameraUpdateFactory.zoomIn());
+
+                return true;
+
+            default:
+                // If we got here, the user's action was not recognized.
+                // Invoke the superclass to handle it.
+                return super.onOptionsItemSelected(item);
+
+        }
+    }
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
@@ -129,32 +178,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             buildGoogleApiClient();
             mMap.setMyLocationEnabled(true);
         }
-        if (mMap != null) {
-            mMap.addMarker(new MarkerOptions().position(MAIN_GATE)
-                    .title("Main Gate"));
-            mMap.addMarker(new MarkerOptions().position(VELACHERY_GATE)
-                    .title("Velachery Gate"));
-            mMap.addMarker(new MarkerOptions().position(JAM_BUS_STOP)
-                    .title("Jamuna Hostel Bus Stop"));
-        }
-
-        MarkerPoints.add(MAIN_GATE);
-        MarkerPoints.add(JAM_BUS_STOP);
-
-        LatLng origin = MarkerPoints.get(0);
-        LatLng dest = MarkerPoints.get(1);
-
-
-        // Getting URL to the Google Directions API
-        String url = getUrl(origin, dest);
-        Log.d("onMapClick", url.toString());
-        FetchUrl FetchUrl = new FetchUrl();
-
-        // Start downloading json data from Google Directions API
-        FetchUrl.execute(url);
-        //move map camera
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(origin));
-        mMap.animateCamera(CameraUpdateFactory.zoomIn());
     }
 
     private String getUrl(LatLng origin, LatLng dest) {
