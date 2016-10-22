@@ -1,8 +1,6 @@
 package com.bignerdranch.android.googlemaps;
 
 
-import android.app.SearchManager;
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -12,14 +10,16 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SearchView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -35,6 +35,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.json.JSONObject;
@@ -54,15 +55,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
-
-    private GoogleMap mMap;
-    private boolean isBusRouteShown;
+    GoogleMap mMap;
+    private boolean isBusRouteShown= false;
     ArrayList<LatLng> MarkerPoints;
     GoogleApiClient mGoogleApiClient;
     Location mLastLocation;
     Marker mCurrLocationMarker;
     LocationRequest mLocationRequest;
     private EditText searchField;
+    Polyline polyline;
 
     private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
     private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
@@ -83,7 +84,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setSupportActionBar(myToolbar);
 
         searchField=(EditText) findViewById(R.id.search);
-        searchField.setVisibility(View.INVISIBLE);
+        searchField.setVisibility(View.GONE);
+
+        searchField.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    searchField.setVisibility(View.GONE);
+                    // performSearch
+                    return true;
+                }
+                return false;
+            }
+        });
 
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkLocationPermission();
@@ -119,6 +132,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.search_go_btn:
+                searchField.setVisibility(View.VISIBLE);
+
+                return true;
             case R.id.action_settings:
                 // User chose the "Settings" item, show the app settings UI...
                 return true;
@@ -127,30 +144,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // User chose the "Favorite" action, mark the current item
                 // as a favorite...
 
-                mMap.addMarker(new MarkerOptions().position(MAIN_GATE)
-                        .title("Main Gate"));
-                mMap.addMarker(new MarkerOptions().position(VELACHERY_GATE)
-                        .title("Velachery Gate"));
-                mMap.addMarker(new MarkerOptions().position(JAM_BUS_STOP)
-                        .title("Jamuna Hostel Bus Stop"));
+                if (!isBusRouteShown){
+                    if(polyline!=null) polyline.setVisible(true);
+                    else{
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            item.setIcon(getResources().getDrawable(R.drawable.ic_directions_bus_black_24dp,this.getTheme()));
+                        }
 
-                MarkerPoints.add(MAIN_GATE);
-                MarkerPoints.add(JAM_BUS_STOP);
+                        MarkerPoints.add(MAIN_GATE);
+                        MarkerPoints.add(JAM_BUS_STOP);
 
-                LatLng origin = MarkerPoints.get(0);
-                LatLng dest = MarkerPoints.get(1);
+                        LatLng origin = MarkerPoints.get(0);
+                        LatLng dest = MarkerPoints.get(1);
 
 
-                // Getting URL to the Google Directions API
-                String url = getUrl(origin, dest);
-                Log.d("onMapClick", url.toString());
-                FetchUrl FetchUrl = new FetchUrl();
+                        // Getting URL to the Google Directions API
+                        String url = getUrl(origin, dest);
+                        Log.d("onMapClick", url.toString());
+                        FetchUrl FetchUrl = new FetchUrl();
 
-                // Start downloading json data from Google Directions API
-                FetchUrl.execute(url);
-                //move map camera
-                mMap.moveCamera(CameraUpdateFactory.newLatLng(origin));
-                mMap.animateCamera(CameraUpdateFactory.zoomIn());
+                        // Start downloading json data from Google Directions API
+                        FetchUrl.execute(url);
+                        //move map camera
+                    }
+
+                }
+                else if(isBusRouteShown){
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        item.setIcon(getResources().getDrawable(R.drawable.ic_directions_bus_white_24dp,this.getTheme()));
+                    }
+                    polyline.setVisible(false);
+                }
+                isBusRouteShown=!isBusRouteShown;
 
                 return true;
 
@@ -163,8 +188,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
 
+        mMap=googleMap;
         //Initialize Google Play Services
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this,
@@ -344,7 +369,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             // Drawing polyline in the Google Map for the i-th route
             if(lineOptions != null) {
-                mMap.addPolyline(lineOptions);
+                polyline = mMap.addPolyline(lineOptions);
             }
             else {
                 Log.d("onPostExecute","without Polylines drawn");

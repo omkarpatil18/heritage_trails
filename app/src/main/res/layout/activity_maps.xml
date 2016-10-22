@@ -22,17 +22,21 @@
 
         <fragment
             android:id="@+id/map"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             class="com.google.android.gms.maps.SupportMapFragment"/>
 
         <EditText
+            android:imeOptions="actionSearch"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_marginRight="10dp"
             android:layout_marginLeft="10dp"
             android:layout_marginTop="40dp"
-            android:id="@+id/search"/>
+            android:id="@+id/search"
+            android:drawableLeft="@android:drawable/ic_menu_search"
+            android:drawableStart="@android:drawable/ic_menu_search"
+            android:background="@drawable/edit_text_background"/>
 
     </FrameLayout>
 

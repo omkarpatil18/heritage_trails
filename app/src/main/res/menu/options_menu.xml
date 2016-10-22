@@ -3,8 +3,13 @@
 
     <!-- "Mark Favorite", should appear as action button if possible -->
     <item
+        android:id="@+id/search_go_btn"
+        android:icon="@drawable/ic_search_black_24dp"
+        android:title="@string/search_title"
+        app:showAsAction="ifRoom"/>
+    <item
         android:id="@+id/bus_route"
-        android:icon="@drawable/ic_directions_bus_black_24dp"
+        android:icon="@drawable/ic_directions_bus_white_24dp"
         android:title="@string/bus_route"
         app:showAsAction="ifRoom"/>
 
