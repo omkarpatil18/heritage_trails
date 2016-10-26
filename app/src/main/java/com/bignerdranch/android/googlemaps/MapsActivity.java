@@ -1,16 +1,24 @@
 package com.bignerdranch.android.googlemaps;
 
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.app.ProgressDialog;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.design.widget.CoordinatorLayout;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.text.Editable;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -18,7 +26,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
-import android.widget.EditText;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -55,15 +66,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
+
     GoogleMap mMap;
-    private boolean isBusRouteShown= false;
     ArrayList<LatLng> MarkerPoints;
     GoogleApiClient mGoogleApiClient;
     Location mLastLocation;
     Marker mCurrLocationMarker;
     LocationRequest mLocationRequest;
-    private EditText searchField;
+    AutoCompleteTextView searchField;
     Polyline polyline;
+    SharedPreferences pref;
+    Boolean isVisible = false, isBusRouteShown = false;
+    Toolbar myToolbar;
+    Menu myMenu;
+    ProgressDialog progress;
+    float defaultSearchPositionX, defaultSearchPositionY;
 
     private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
     private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
@@ -80,18 +97,45 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        Toolbar myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
+        pref = getSharedPreferences("SEARCH_BAR_VISIBLE", 0);
+
+        myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
 
-        searchField=(EditText) findViewById(R.id.search);
+        ArrayList<String> PlacesArray = new ArrayList<String>();
+        PlacesArray.add("Gajendra circle");
+        PlacesArray.add("Main gate");
+        PlacesArray.add("Tharamani gate");
+        PlacesArray.add("Velachery gate");
+        PlacesArray.add("Krishna gate");
+        PlacesArray.add("Research park gate");
+        PlacesArray.add("Gurunath stores");
+        PlacesArray.add("Himalaya mess");
+
+        searchField = (AutoCompleteTextView) findViewById(R.id.auto_comp_tv_search);
+        defaultSearchPositionX = searchField.getTranslationX();
+        defaultSearchPositionY = searchField.getTranslationX();
         searchField.setVisibility(View.GONE);
 
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
+                android.R.layout.simple_dropdown_item_1line, PlacesArray);
+        searchField.setAdapter(adapter);
+        //TODO: set threshold to some high value, searchField.setThreshold(4);
+        searchField.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+            public void onItemClick(AdapterView<?> parent, View view, int position, long rowId) {
+                String selection = (String) parent.getItemAtPosition(position);
+                Toast.makeText(getApplicationContext(), "You selected " + selection, Toast.LENGTH_SHORT).show();
+            }
+        });
         searchField.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                    searchField.setVisibility(View.GONE);
-                    // performSearch
+                    Editable selection = searchField.getText();
+                    Toast.makeText(getApplicationContext(), "You searched " + selection, Toast.LENGTH_SHORT).show();
+                    animateSearchOut();
+                    //TODO: show search result here
                     return true;
                 }
                 return false;
@@ -108,12 +152,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        progress = new ProgressDialog(this);
     }
 
     public boolean onCreateOptionsMenu(Menu menu) {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.options_menu, menu);
-
+        myMenu = menu;
         // Associate searchable configuration with the SearchView
 
         return true;
@@ -132,10 +178,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case R.id.search_go_btn:
-                searchField.setVisibility(View.VISIBLE);
+            case R.id.search_go_btn: {
+
+                if (isVisible) {
+                    animateSearchOut();
+                } else {
+                    animateSearchIn();
+                }
 
                 return true;
+            }
             case R.id.action_settings:
                 // User chose the "Settings" item, show the app settings UI...
                 return true;
@@ -144,13 +196,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // User chose the "Favorite" action, mark the current item
                 // as a favorite...
 
-                if (!isBusRouteShown){
-                    if(polyline!=null) polyline.setVisible(true);
-                    else{
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            item.setIcon(getResources().getDrawable(R.drawable.ic_directions_bus_black_24dp,this.getTheme()));
-                        }
+                if (!isBusRouteShown) {
 
+                    if (polyline != null) {
+                        polyline.setVisible(true);
+                        item.setIcon(R.drawable.ic_bus_selected);
+                        isBusRouteShown = true;
+                    } else {
+                        progress.setTitle("Loading");
+                        progress.setMessage("Getting route...");
+                        progress.setCancelable(false); // disable dismiss by tapping outside of the dialog
+                        progress.show();
                         MarkerPoints.add(MAIN_GATE);
                         MarkerPoints.add(JAM_BUS_STOP);
 
@@ -167,15 +223,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         FetchUrl.execute(url);
                         //move map camera
                     }
-
-                }
-                else if(isBusRouteShown){
+                } else {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        item.setIcon(getResources().getDrawable(R.drawable.ic_directions_bus_white_24dp,this.getTheme()));
+                        item.setIcon(getResources().getDrawable(R.drawable.ic_bus_deselected, this.getTheme()));
                     }
                     polyline.setVisible(false);
+                    item.setIcon(R.drawable.ic_bus_deselected);
+                    isBusRouteShown = false;
                 }
-                isBusRouteShown=!isBusRouteShown;
 
                 return true;
 
@@ -186,20 +241,63 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         }
     }
+
+    private void animateSearchOut() {
+        if(!isVisible) return;
+        searchField.animate()
+                .translationYBy(-1 * (myToolbar.getHeight()))
+                .setDuration(100)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        super.onAnimationEnd(animation);
+                        searchField.setVisibility(View.GONE);
+                    }
+                });
+        isVisible = false;
+        MenuItem item = myMenu.findItem(R.id.search_go_btn);
+        item.setIcon(R.drawable.ic_search_deselected);
+        searchField.setText("");
+
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(searchField.getWindowToken(), 0);
+    }
+
+    private void animateSearchIn() {
+        if(isVisible) return;
+        searchField.animate()
+                .translationYBy(myToolbar.getHeight())
+                .setDuration(100)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationStart(Animator animation) {
+                        super.onAnimationStart(animation);
+                        searchField.setVisibility(View.VISIBLE);
+                    }
+                });
+        isVisible = true;
+        MenuItem item = myMenu.findItem(R.id.search_go_btn);
+        item.setIcon(R.drawable.ic_search_selected);
+    }
+
     @Override
     public void onMapReady(GoogleMap googleMap) {
 
-        mMap=googleMap;
+        LatLng testGC = new LatLng(12.991780, 80.233772);
+
+        googleMap.setMyLocationEnabled(false);
+        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(testGC, 17));
+
+        mMap = googleMap;
         //Initialize Google Play Services
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this,
                     android.Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED) {
                 buildGoogleApiClient();
-                mMap.setMyLocationEnabled(true);
+                mMap.setMyLocationEnabled(false);
             }
-        }
-        else {
+        } else {
             buildGoogleApiClient();
             mMap.setMyLocationEnabled(true);
         }
@@ -213,13 +311,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Destination of route
         String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
 
-        String waypoints="waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
+        String waypoints = "waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
 
         // Sensor enabled
         String sensor = "sensor=false";
 
         // Building the parameters to the web service
-        String parameters = str_origin + "&" + str_dest + "&" + waypoints +"&" + sensor;
+        String parameters = str_origin + "&" + str_dest + "&" + waypoints + "&" + sensor;
 
         // Output format
         String output = "json";
@@ -286,7 +384,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 data = downloadUrl(url[0]);
                 Log.d("Background Task data", data.toString());
             } catch (Exception e) {
-                Log.d("Background Task", e.toString());
+                Log.d("BackgroundTask", e.toString());
             }
             return data;
         }
@@ -317,17 +415,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             try {
                 jObject = new JSONObject(jsonData[0]);
-                Log.d("ParserTask",jsonData[0].toString());
+                Log.d("ParserTask", jsonData[0].toString());
                 DataParser parser = new DataParser();
                 Log.d("ParserTask", parser.toString());
 
                 // Starts parsing data
                 routes = parser.parse(jObject);
-                Log.d("ParserTask","Executing routes");
-                Log.d("ParserTask",routes.toString());
+                Log.d("ParserTask", "Executing routes");
+                Log.d("ParserTask", routes.toString());
 
             } catch (Exception e) {
-                Log.d("ParserTask",e.toString());
+                Log.d("ParserTask", e.toString());
                 e.printStackTrace();
             }
             return routes;
@@ -340,39 +438,50 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             PolylineOptions lineOptions = null;
 
             // Traversing through all the routes
-            for (int i = 0; i < result.size(); i++) {
-                points = new ArrayList<>();
-                lineOptions = new PolylineOptions();
+            if (result != null) {
+                for (int i = 0; i < result.size(); i++) {
+                    points = new ArrayList<>();
+                    lineOptions = new PolylineOptions();
 
-                // Fetching i-th route
-                List<HashMap<String, String>> path = result.get(i);
+                    // Fetching i-th route
+                    List<HashMap<String, String>> path = result.get(i);
 
-                // Fetching all the points in i-th route
-                for (int j = 0; j < path.size(); j++) {
-                    HashMap<String, String> point = path.get(j);
+                    // Fetching all the points in i-th route
+                    for (int j = 0; j < path.size(); j++) {
+                        HashMap<String, String> point = path.get(j);
 
-                    double lat = Double.parseDouble(point.get("lat"));
-                    double lng = Double.parseDouble(point.get("lng"));
-                    LatLng position = new LatLng(lat, lng);
+                        double lat = Double.parseDouble(point.get("lat"));
+                        double lng = Double.parseDouble(point.get("lng"));
+                        LatLng position = new LatLng(lat, lng);
 
-                    points.add(position);
+                        points.add(position);
+                    }
+
+                    // Adding all the points in the route to LineOptions
+                    lineOptions.addAll(points);
+                    lineOptions.width(6);
+                    lineOptions.color(Color.BLUE);
+
+                    Log.d("onPostExecute", "onPostExecute lineoptions decoded");
+
                 }
-
-                // Adding all the points in the route to LineOptions
-                lineOptions.addAll(points);
-                lineOptions.width(6);
-                lineOptions.color(Color.BLACK);
-
-                Log.d("onPostExecute","onPostExecute lineoptions decoded");
-
             }
 
             // Drawing polyline in the Google Map for the i-th route
-            if(lineOptions != null) {
+            if (lineOptions != null) {
                 polyline = mMap.addPolyline(lineOptions);
-            }
-            else {
-                Log.d("onPostExecute","without Polylines drawn");
+                isBusRouteShown = true;
+                MenuItem item = myMenu.findItem(R.id.bus_route);
+                item.setIcon(R.drawable.ic_bus_selected);
+                progress.dismiss();
+            } else {
+                isBusRouteShown = false;
+                progress.dismiss();
+                CoordinatorLayout coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coord_layout);
+                Snackbar snackbar = Snackbar
+                        .make(coordinatorLayout, "Couldn't connect!", Snackbar.LENGTH_LONG);
+
+                snackbar.show();
             }
         }
     }
@@ -439,7 +548,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
-    public boolean checkLocationPermission(){
+
+    public boolean checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -488,7 +598,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (mGoogleApiClient == null) {
                             buildGoogleApiClient();
                         }
-                        mMap.setMyLocationEnabled(true);
+                        mMap.setMyLocationEnabled(false);
                     }
 
                 } else {
