@@ -4,11 +4,14 @@ package com.bignerdranch.android.googlemaps;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.ProgressDialog;
+import android.app.ProgressDialog;
+import android.app.SearchManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,6 +20,7 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.SearchView;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
 import android.util.Log;
@@ -33,6 +37,13 @@ import android.widget.AutoCompleteTextView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.VolleyLog;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -49,6 +60,8 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -165,6 +178,85 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return true;
     }
 
+                    @Override
+                    public boolean onQueryTextChange(String newText) {
+                        //doMySearch(newText);
+                        return false;
+                    }
+                }
+        );
+        return true;
+    }
+
+    private void doMySearch(String query) {
+// Instantiate the RequestQueue.
+        final ProgressDialog pDialog = new ProgressDialog(this);
+        pDialog.setMessage("Searching...");
+        pDialog.show();
+        final RequestQueue queue = Volley.newRequestQueue(getApplicationContext());
+        Uri.Builder uriBuilder = new Uri.Builder();
+        uriBuilder.scheme("http")
+                .authority("api.openweathermap.org")
+                .appendPath("data")
+                .appendPath("2.5")
+                .appendPath("weather")
+                .appendQueryParameter("zip", "600036,us")
+                .appendQueryParameter("APPID", "221e0adda1f30a2a94c5e559535a8d2c");
+        String url = uriBuilder.build().toString();
+
+// Request a string response from the provided URL.
+        StringRequest jsonObjReq = new StringRequest(Request.Method.GET,
+                "http://192.168.137.1:8080/get_location.php?locname=" + query, new Response.Listener<String>() {
+
+            @Override
+            public void onResponse(String response) {
+                Log.d("MY_VOLLEY: ", response);
+                pDialog.hide();
+                try {
+                    JSONArray jsonArray = new JSONArray(response);
+                    JSONObject jsonObject;
+                    int i, j;
+                    String locationName, locationDescription, latitude, longitude;
+                    for (i = 0; i < jsonArray.length(); i++) {
+                        jsonObject = jsonArray.getJSONObject(i);
+                        locationName = jsonObject.getString("locname");
+                        locationDescription = jsonObject.getString("locdesc");
+                        latitude = jsonObject.getString("lat");
+                        longitude = jsonObject.getString("long");
+                        j = i + 1;
+                        String message = "RESULT NUMBER " + j +
+                                "\nLocation name = " + locationName +
+                                "\nLocation description = " + locationDescription +
+                                "\nLatitude = " + latitude +
+                                "\nLongitude = " + longitude;
+                        Toast.makeText(getApplicationContext(),
+                                message, Toast.LENGTH_SHORT).show();
+                    }
+                    Toast.makeText(getApplicationContext(),
+                            "That's it!", Toast.LENGTH_SHORT).show();
+
+                } catch (JSONException e) {
+
+                    Toast.makeText(getApplicationContext(),
+                            "No result found!", Toast.LENGTH_SHORT).show();
+                    e.printStackTrace();
+                }
+
+            }
+        }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                pDialog.hide();
+                VolleyLog.d("VOLLEY: ", "VOLLEY_ERROR: " + "" + error);
+                Toast.makeText(getApplicationContext(),
+                        "" + error, Toast.LENGTH_SHORT).show();
+            }
+        });
+        pDialog.hide();
+        queue.add(jsonObjReq);
+    }
+
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
@@ -174,7 +266,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
-
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
@@ -191,6 +282,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             case R.id.action_settings:
                 // User chose the "Settings" item, show the app settings UI...
                 return true;
+        //Initialize Google Play Services
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) {
+                buildGoogleApiClient();
+                mMap.setMyLocationEnabled(true);
+            }
+        } else {
+            buildGoogleApiClient();
+            mMap.setMyLocationEnabled(true);
+        }
+        if (mMap != null) {
+            mMap.addMarker(new MarkerOptions().position(MAIN_GATE)
+                    .title("Main Gate"));
+            mMap.addMarker(new MarkerOptions().position(VELACHERY_GATE)
+                    .title("Velachery Gate"));
+            mMap.addMarker(new MarkerOptions().position(JAM_BUS_STOP)
+                    .title("Jamuna Hostel Bus Stop"));
+        }
 
             case R.id.bus_route:
                 // User chose the "Favorite" action, mark the current item
@@ -311,13 +422,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Destination of route
         String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
 
-        String waypoints = "waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
+        String waypoints="waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
 
         // Sensor enabled
         String sensor = "sensor=false";
 
         // Building the parameters to the web service
-        String parameters = str_origin + "&" + str_dest + "&" + waypoints + "&" + sensor;
+        String parameters = str_origin + "&" + str_dest + "&" + waypoints +"&" + sensor;
 
         // Output format
         String output = "json";
@@ -384,7 +495,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 data = downloadUrl(url[0]);
                 Log.d("Background Task data", data.toString());
             } catch (Exception e) {
-                Log.d("BackgroundTask", e.toString());
+                Log.d("Background Task", e.toString());
             }
             return data;
         }
@@ -415,17 +526,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             try {
                 jObject = new JSONObject(jsonData[0]);
-                Log.d("ParserTask", jsonData[0].toString());
+                Log.d("ParserTask",jsonData[0].toString());
                 DataParser parser = new DataParser();
                 Log.d("ParserTask", parser.toString());
 
                 // Starts parsing data
                 routes = parser.parse(jObject);
-                Log.d("ParserTask", "Executing routes");
-                Log.d("ParserTask", routes.toString());
+                Log.d("ParserTask","Executing routes");
+                Log.d("ParserTask",routes.toString());
 
             } catch (Exception e) {
-                Log.d("ParserTask", e.toString());
+                Log.d("ParserTask",e.toString());
                 e.printStackTrace();
             }
             return routes;
@@ -598,7 +709,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         if (mGoogleApiClient == null) {
                             buildGoogleApiClient();
                         }
-                        mMap.setMyLocationEnabled(false);
+                        mMap.setMyLocationEnabled(true);
                     }
 
                 } else {
