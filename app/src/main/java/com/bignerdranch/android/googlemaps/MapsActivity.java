@@ -4,10 +4,7 @@ package com.bignerdranch.android.googlemaps;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.ProgressDialog;
-import android.app.ProgressDialog;
-import android.app.SearchManager;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -20,9 +17,9 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.SearchView;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -65,6 +62,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -88,74 +87,87 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     LocationRequest mLocationRequest;
     AutoCompleteTextView searchField;
     Polyline polyline;
-    SharedPreferences pref;
-    Boolean isVisible = false, isBusRouteShown = false;
+    Boolean isVisible = false, isBusRouteShown = false, isDownloaded = false;
     Toolbar myToolbar;
     Menu myMenu;
-    ProgressDialog progress;
-    float defaultSearchPositionX, defaultSearchPositionY;
-
+    CoordinatorLayout coordinatorLayout;
+    ArrayList<String> placesArray;
+    ProgressDialog progress, pDialog;
+    Context context;
+    float searchBarPosX, searchBarPosY;
     private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
     private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
-    private static final LatLng GAJENDRA_CIRCLE_BUS_STOP = new LatLng(12.991780, 80.233772);
-    private static final LatLng HSB_BUS_STOP = new LatLng(12.990925, 80.231896);
-    private static final LatLng BT_BUS_STOP_1 = new LatLng(12.990287, 80.227627);
-    private static final LatLng VELACHERY_GATE = new LatLng(12.987857, 80.223127);
-    private static final LatLng BT_BUS_STOP_2 = new LatLng(12.989977, 80.227707);
-    private static final LatLng CRC_BUS_STOP = new LatLng(12.988204, 80.230125);
-    private static final LatLng TGH_BUS_STOP = new LatLng(12.986574, 80.233254);
-    private static final LatLng NARMADA_BUS_STOP = new LatLng(12.986473, 80.235324);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        pref = getSharedPreferences("SEARCH_BAR_VISIBLE", 0);
 
         myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
+        context = this;
+        pDialog = new ProgressDialog(this);
+        progress = new ProgressDialog(this);
+        coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coord_layout);
 
-        ArrayList<String> PlacesArray = new ArrayList<String>();
-        PlacesArray.add("Gajendra circle");
-        PlacesArray.add("Main gate");
-        PlacesArray.add("Tharamani gate");
-        PlacesArray.add("Velachery gate");
-        PlacesArray.add("Krishna gate");
-        PlacesArray.add("Research park gate");
-        PlacesArray.add("Gurunath stores");
-        PlacesArray.add("Himalaya mess");
+        placesArray = new ArrayList<String>();
+
+        getSuggestions();
 
         searchField = (AutoCompleteTextView) findViewById(R.id.auto_comp_tv_search);
-        defaultSearchPositionX = searchField.getTranslationX();
-        defaultSearchPositionY = searchField.getTranslationX();
+        searchBarPosX = searchField.getX();
+        searchBarPosY = searchField.getY();
         searchField.setVisibility(View.GONE);
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this,
-                android.R.layout.simple_dropdown_item_1line, PlacesArray);
-        searchField.setAdapter(adapter);
-        //TODO: set threshold to some high value, searchField.setThreshold(4);
         searchField.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
             public void onItemClick(AdapterView<?> parent, View view, int position, long rowId) {
-                String selection = (String) parent.getItemAtPosition(position);
-                Toast.makeText(getApplicationContext(), "You selected " + selection, Toast.LENGTH_SHORT).show();
-            }
-        });
-        searchField.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            @Override
-            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                    Editable selection = searchField.getText();
-                    Toast.makeText(getApplicationContext(), "You searched " + selection, Toast.LENGTH_SHORT).show();
-                    animateSearchOut();
-                    //TODO: show search result here
-                    return true;
-                }
-                return false;
+                final String selection = (String) parent.getItemAtPosition(position);
+                searchField.setText(selection);
+                animateSearchOut();
+                mMap.clear();
+                pDialog.setMessage("Searching...");
+                pDialog.setCancelable(false);
+                pDialog.show();
+                Thread thread = new Thread() {
+                    @Override
+                    public void run() {
+                        doMySearch(selection);
+                    }
+                };
+                thread.start();
             }
         });
 
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        searchField.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                                                  @Override
+                                                  public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                                                      if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                                                          final Editable selection = searchField.getText();
+                                                          animateSearchOut();
+                                                          mMap.clear();
+                                                          pDialog.setMessage("Searching...");
+                                                          pDialog.setCancelable(false);
+                                                          pDialog.show();
+                                                          Thread thread = new Thread() {
+                                                              @Override
+                                                              public void run() {
+                                                                  doMySearch(selection.toString());
+                                                              }
+                                                          };
+                                                          thread.start();
+                                                          return true;
+                                                      }
+
+                                                      return false;
+                                                  }
+                                              }
+
+        );
+
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+
+        {
             checkLocationPermission();
         }
         // Initializing
@@ -166,7 +178,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        progress = new ProgressDialog(this);
     }
 
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -178,7 +189,130 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return true;
     }
 
+    public void doMySearch(String query) {
 
+        final RequestQueue queue = Volley.newRequestQueue(getApplicationContext());
+
+        Uri.Builder builder = new Uri.Builder();
+        builder.scheme("https")//https://students.iitm.ac.in/studentsapp/map/get_location.php?
+                .authority("students.iitm.ac.in")
+                .appendPath("studentsapp")
+                .appendPath("map")
+                .appendPath("get_location.php")
+                .appendQueryParameter("locname", query);
+        String url = builder.build().toString();
+
+        // Request a string response from the provided URL.
+        StringRequest jsonObjReq = new StringRequest(Request.Method.GET,
+                url, new Response.Listener<String>() {
+
+            @Override
+            public void onResponse(String response) {
+
+
+                try {
+
+                    JSONArray jsonArray = new JSONArray(response);
+                    JSONObject jsonObject;
+                    int i;
+                    String locationName, locationDescription, latitude, longitude;
+                    LatLng latLong;
+                    for (i = 0; i < jsonArray.length(); i++) {
+                        jsonObject = jsonArray.getJSONObject(i);
+                        locationName = jsonObject.getString("locname");
+                        locationDescription = jsonObject.getString("locdesc");
+                        latitude = jsonObject.getString("lat");
+                        longitude = jsonObject.getString("long");
+
+                        latLong = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
+                        mMap.addMarker(new MarkerOptions()
+                                .title(locationName)
+                                .snippet(locationDescription)
+                                .position(latLong));
+                    }
+                    if (pDialog.isShowing()) pDialog.dismiss();
+                    LatLng latLngGC = new LatLng(12.991780, 80.233772);
+                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 14));
+
+                } catch (JSONException e) {
+
+                    if (pDialog.isShowing()) pDialog.dismiss();
+                    Snackbar snackbar = Snackbar
+                            .make(coordinatorLayout, "No result found!", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                    e.printStackTrace();
+
+                }
+
+            }
+        }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                if (pDialog.isShowing()) pDialog.dismiss();
+                VolleyLog.d("VolleyResponseError", error);
+                Snackbar snackbar = Snackbar
+                        .make(coordinatorLayout, "Couldn't connect to the server.", Snackbar.LENGTH_LONG);
+                snackbar.show();
+
+            }
+        });
+        queue.add(jsonObjReq);
+    }
+
+    private void getSuggestions() {
+
+        final RequestQueue queue = Volley.newRequestQueue(getApplicationContext());
+
+        Uri.Builder builder = new Uri.Builder();
+        builder.scheme("https")//https://students.iitm.ac.in/studentsapp/map/get_names.php
+                .authority("students.iitm.ac.in")
+                .appendPath("studentsapp")
+                .appendPath("map")
+                .appendPath("get_names.php");
+        final String url = builder.build().toString();
+
+        StringRequest jsonObjReq = new StringRequest(Request.Method.GET,
+                url, new Response.Listener<String>() {
+
+
+            @Override
+            public void onResponse(String response) {
+
+
+                try {
+                    JSONArray jsonArray = new JSONArray(response);
+                    JSONObject jsonObject;
+                    int i;
+                    String locationName;
+                    for (i = 0; i < jsonArray.length(); i++) {
+                        jsonObject = jsonArray.getJSONObject(i);
+                        locationName = jsonObject.getString("locname");
+                        placesArray.add(locationName);
+                    }
+                    isDownloaded = true;
+                    ArrayAdapter<String> adapter = new ArrayAdapter<String>(context,
+                            android.R.layout.simple_dropdown_item_1line, placesArray);
+                    searchField.setAdapter(adapter);
+                } catch (JSONException e) {
+                    Snackbar snackbar = Snackbar
+                            .make(coordinatorLayout, "Error getting data, try again later...", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                    e.printStackTrace();
+
+                }
+
+            }
+        }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Toast.makeText(getApplicationContext(), "Couldn't update data.", Toast.LENGTH_SHORT).show();
+
+            }
+        });
+        queue.add(jsonObjReq);
+    }
 
     /**
      * Manipulates the map once available.
@@ -197,6 +331,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 if (isVisible) {
                     animateSearchOut();
                 } else {
+                    if (!isDownloaded) getSuggestions();
                     animateSearchIn();
                 }
 
@@ -218,8 +353,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         item.setIcon(R.drawable.ic_bus_selected);
                         isBusRouteShown = true;
                     } else {
-                        progress.setTitle("Loading");
-                        progress.setMessage("Getting route...");
+                        progress.setMessage("Getting bus route...");
                         progress.setCancelable(false); // disable dismiss by tapping outside of the dialog
                         progress.show();
                         MarkerPoints.add(MAIN_GATE);
@@ -230,12 +364,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
                         // Getting URL to the Google Directions API
-                        String url = getUrl(origin, dest);
-                        Log.d("onMapClick", url.toString());
+                        String urlString = getUrl(origin, dest);
                         FetchUrl FetchUrl = new FetchUrl();
 
                         // Start downloading json data from Google Directions API
-                        FetchUrl.execute(url);
+                        FetchUrl.execute(urlString);
                         //move map camera
                     }
                 } else {
@@ -258,9 +391,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void animateSearchOut() {
-        if(!isVisible) return;
+        if (!isVisible) return;
         searchField.animate()
-                .translationYBy(-1 * (myToolbar.getHeight()))
+                .translationX(searchBarPosX)
+                .translationY(searchBarPosY)
                 .setDuration(100)
                 .setListener(new AnimatorListenerAdapter() {
                     @Override
@@ -279,7 +413,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void animateSearchIn() {
-        if(isVisible) return;
+        if (isVisible) return;
         searchField.animate()
                 .translationYBy(myToolbar.getHeight())
                 .setDuration(100)
@@ -316,6 +450,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             buildGoogleApiClient();
             mMap.setMyLocationEnabled(true);
         }
+
     }
 
     private String getUrl(LatLng origin, LatLng dest) {
@@ -326,13 +461,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Destination of route
         String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
 
-        String waypoints="waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
+        String waypoints = "waypoints=12.991780,80.233772|12.990925,80.231896|12.990287,80.227627|12.987857,80.223127|12.989977,80.227707|12.988204,80.230125|12.986574,80.233254|12.986473,80.235324";
 
         // Sensor enabled
         String sensor = "sensor=false";
 
         // Building the parameters to the web service
-        String parameters = str_origin + "&" + str_dest + "&" + waypoints +"&" + sensor;
+        String parameters = str_origin + "&" + str_dest + "&" + waypoints + "&" + sensor;
 
         // Output format
         String output = "json";
@@ -373,11 +508,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
 
             data = sb.toString();
-            Log.d("downloadUrl", data.toString());
             br.close();
 
         } catch (Exception e) {
-            Log.d("Exception", e.toString());
+            if (progress.isShowing()) {
+                progress.dismiss();
+                isBusRouteShown = false;
+                Snackbar snackbar = Snackbar
+                        .make(coordinatorLayout, "Couldn't connect to internet.", Snackbar.LENGTH_LONG);
+                snackbar.show();
+            }
         } finally {
             iStream.close();
             urlConnection.disconnect();
@@ -397,9 +537,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             try {
                 // Fetching the data from web service
                 data = downloadUrl(url[0]);
-                Log.d("Background Task data", data.toString());
             } catch (Exception e) {
-                Log.d("Background Task", e.toString());
+                if (progress.isShowing()) {
+                    progress.dismiss();
+                    isBusRouteShown = false;
+                    Snackbar snackbar = Snackbar
+                            .make(coordinatorLayout, "Couldn't connect to internet.", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
             }
             return data;
         }
@@ -430,17 +575,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             try {
                 jObject = new JSONObject(jsonData[0]);
-                Log.d("ParserTask",jsonData[0].toString());
                 DataParser parser = new DataParser();
-                Log.d("ParserTask", parser.toString());
 
                 // Starts parsing data
                 routes = parser.parse(jObject);
-                Log.d("ParserTask","Executing routes");
-                Log.d("ParserTask",routes.toString());
 
             } catch (Exception e) {
-                Log.d("ParserTask",e.toString());
+                if (progress.isShowing()) {
+                    progress.dismiss();
+                    isBusRouteShown = false;
+                    Snackbar snackbar = Snackbar
+                            .make(coordinatorLayout, "Error parsing data, try again later...", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
                 e.printStackTrace();
             }
             return routes;
@@ -477,7 +624,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     lineOptions.width(6);
                     lineOptions.color(Color.BLUE);
 
-                    Log.d("onPostExecute", "onPostExecute lineoptions decoded");
 
                 }
             }
@@ -488,17 +634,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 isBusRouteShown = true;
                 MenuItem item = myMenu.findItem(R.id.bus_route);
                 item.setIcon(R.drawable.ic_bus_selected);
-                progress.dismiss();
+                if (progress.isShowing()) progress.dismiss();
             } else {
-                isBusRouteShown = false;
-                progress.dismiss();
-                CoordinatorLayout coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coord_layout);
-                Snackbar snackbar = Snackbar
-                        .make(coordinatorLayout, "Couldn't connect!", Snackbar.LENGTH_LONG);
-
-                snackbar.show();
+                if (progress.isShowing()) {
+                    isBusRouteShown = false;
+                    progress.dismiss();
+                    Snackbar snackbar = Snackbar
+                            .make(coordinatorLayout, "Error getting route, try again later...", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
             }
         }
+
     }
 
     protected synchronized void buildGoogleApiClient() {
@@ -619,6 +766,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 } else {
 
                     // Permission denied, Disable the functionality that depends on this permission.
+
                     Toast.makeText(this, "permission denied", Toast.LENGTH_LONG).show();
                 }
                 return;
@@ -629,175 +777,3 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 }
-
-//TODO: Add this search functionality:
-
-/*       @Override
-                    public boolean onQueryTextChange(String newText) {
-                        //doMySearch(newText);
-                        return false;
-                    }
-                }
-        );
-        return true;
-    }
-private void doMySearch(String query) {
-// Instantiate the RequestQueue.
-final ProgressDialog pDialog = new ProgressDialog(this);
-        pDialog.setMessage("Searching...");
-        pDialog.show();
-final RequestQueue queue = Volley.newRequestQueue(getApplicationContext());
-        Uri.Builder uriBuilder = new Uri.Builder();
-        uriBuilder.scheme("http")
-        .authority("api.openweathermap.org")
-        .appendPath("data")
-        .appendPath("2.5")
-        .appendPath("weather")
-        .appendQueryParameter("zip", "600036,us")
-        .appendQueryParameter("APPID", "221e0adda1f30a2a94c5e559535a8d2c");
-        String url = uriBuilder.build().toString();
-
-// Request a string response from the provided URL.
-        StringRequest jsonObjReq = new StringRequest(Request.Method.GET,
-        "http://192.168.137.1:8080/get_location.php?locname=" + query, new Response.Listener<String>() {
-
-@Override
-public void onResponse(String response) {
-        Log.d("MY_VOLLEY: ", response);
-        pDialog.hide();
-        try {
-        JSONArray jsonArray = new JSONArray(response);
-        JSONObject jsonObject;
-        int i, j;
-        String locationName, locationDescription, latitude, longitude;
-        for (i = 0; i < jsonArray.length(); i++) {
-        jsonObject = jsonArray.getJSONObject(i);
-        locationName = jsonObject.getString("locname");
-        locationDescription = jsonObject.getString("locdesc");
-        latitude = jsonObject.getString("lat");
-        longitude = jsonObject.getString("long");
-        j = i + 1;
-        String message = "RESULT NUMBER " + j +
-        "\nLocation name = " + locationName +
-        "\nLocation description = " + locationDescription +
-        "\nLatitude = " + latitude +
-        "\nLongitude = " + longitude;
-        Toast.makeText(getApplicationContext(),
-        message, Toast.LENGTH_SHORT).show();
-        }
-        Toast.makeText(getApplicationContext(),
-        "That's it!", Toast.LENGTH_SHORT).show();
-
-        } catch (JSONException e) {
-
-        Toast.makeText(getApplicationContext(),
-        "No result found!", Toast.LENGTH_SHORT).show();
-        e.printStackTrace();
-        }
-
-        }
-        }, new Response.ErrorListener() {
-
-@Override
-public void onErrorResponse(VolleyError error) {
-        pDialog.hide();
-        VolleyLog.d("VOLLEY: ", "VOLLEY_ERROR: " + "" + error);
-        Toast.makeText(getApplicationContext(),
-        "" + error, Toast.LENGTH_SHORT).show();
-        }
-        });
-        pDialog.hide();
-        queue.add(jsonObjReq);
-        }
-private void doMySearch(String query) {
-// Instantiate the RequestQueue.
-final ProgressDialog pDialog = new ProgressDialog(this);
-        pDialog.setMessage("Searching...");
-        pDialog.show();
-final RequestQueue queue = Volley.newRequestQueue(getApplicationContext());
-        Uri.Builder uriBuilder = new Uri.Builder();
-        uriBuilder.scheme("http")
-        .authority("api.openweathermap.org")
-        .appendPath("data")
-        .appendPath("2.5")
-        .appendPath("weather")
-        .appendQueryParameter("zip", "600036,us")
-        .appendQueryParameter("APPID", "221e0adda1f30a2a94c5e559535a8d2c");
-        String url = uriBuilder.build().toString();
-
-// Request a string response from the provided URL.
-        StringRequest jsonObjReq = new StringRequest(Request.Method.GET,
-        "http://192.168.137.1:8080/get_location.php?locname=" + query, new Response.Listener<String>() {
-
-@Override
-public void onResponse(String response) {
-        Log.d("MY_VOLLEY: ", response);
-        pDialog.hide();
-        try {
-        JSONArray jsonArray = new JSONArray(response);
-        JSONObject jsonObject;
-        int i, j;
-        String locationName, locationDescription, latitude, longitude;
-        for (i = 0; i < jsonArray.length(); i++) {
-        jsonObject = jsonArray.getJSONObject(i);
-        locationName = jsonObject.getString("locname");
-        locationDescription = jsonObject.getString("locdesc");
-        latitude = jsonObject.getString("lat");
-        longitude = jsonObject.getString("long");
-        j = i + 1;
-        String message = "RESULT NUMBER " + j +
-        "\nLocation name = " + locationName +
-        "\nLocation description = " + locationDescription +
-        "\nLatitude = " + latitude +
-        "\nLongitude = " + longitude;
-        Toast.makeText(getApplicationContext(),
-        message, Toast.LENGTH_SHORT).show();
-        }
-        Toast.makeText(getApplicationContext(),
-        "That's it!", Toast.LENGTH_SHORT).show();
-
-        } catch (JSONException e) {
-
-        Toast.makeText(getApplicationContext(),
-        "No result found!", Toast.LENGTH_SHORT).show();
-        e.printStackTrace();
-        }
-
-        }
-        }, new Response.ErrorListener() {
-
-@Override
-public void onErrorResponse(VolleyError error) {
-        pDialog.hide();
-        VolleyLog.d("VOLLEY: ", "VOLLEY_ERROR: " + "" + error);
-        Toast.makeText(getApplicationContext(),
-        "" + error, Toast.LENGTH_SHORT).show();
-        }
-        });
-        pDialog.hide();
-        queue.add(jsonObjReq);
-        }
-*/
-
-/*  //Initialize Google Play Services
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (ContextCompat.checkSelfPermission(this,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION)
-                    == PackageManager.PERMISSION_GRANTED) {
-                buildGoogleApiClient();
-                mMap.setMyLocationEnabled(true);
-            }
-        } else {
-            buildGoogleApiClient();
-            mMap.setMyLocationEnabled(true);
-        }
-        if (mMap != null) {
-            mMap.addMarker(new MarkerOptions().position(MAIN_GATE)
-                    .title("Main Gate"));
-            mMap.addMarker(new MarkerOptions().position(VELACHERY_GATE)
-                    .title("Velachery Gate"));
-            mMap.addMarker(new MarkerOptions().position(JAM_BUS_STOP)
-                    .title("Jamuna Hostel Bus Stop"));
-        }
-
-        */

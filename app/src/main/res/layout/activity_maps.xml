@@ -35,7 +35,6 @@
             app:uiZoomGestures="true" />
 
     </FrameLayout>
-
     <AutoCompleteTextView
         android:id="@+id/auto_comp_tv_search"
         android:layout_width="match_parent"
