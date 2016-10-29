@@ -87,6 +87,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     LocationRequest mLocationRequest;
     AutoCompleteTextView searchField;
     Polyline polyline;
+    PolylineOptions lineOptions;
     Boolean isVisible = false, isBusRouteShown = false, isDownloaded = false;
     Toolbar myToolbar;
     Menu myMenu;
@@ -125,6 +126,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 final String selection = (String) parent.getItemAtPosition(position);
                 searchField.setText(selection);
                 animateSearchOut();
+                setBusDeselectedIcon();
                 mMap.clear();
                 pDialog.setMessage("Searching...");
                 pDialog.setCancelable(false);
@@ -145,6 +147,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                                       if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                                                           final Editable selection = searchField.getText();
                                                           animateSearchOut();
+                                                          setBusDeselectedIcon();
                                                           mMap.clear();
                                                           pDialog.setMessage("Searching...");
                                                           pDialog.setCancelable(false);
@@ -178,6 +181,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+    }
+
+    private void setBusDeselectedIcon() {
+        if (polyline != null) polyline.setVisible(false);
+        myMenu.findItem(R.id.bus_route).setIcon(R.drawable.ic_bus_deselected);
+        isBusRouteShown = false;
     }
 
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -238,6 +247,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     } else {
                         latLngGC = new LatLng(12.991780, 80.233772);
                         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 14));
+                        Snackbar snackbar = Snackbar
+                                .make(coordinatorLayout, "Showing all related results...", Snackbar.LENGTH_LONG);
+                        snackbar.show();
                     }
                 } catch (JSONException e) {
 
@@ -350,11 +362,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             case R.id.bus_route:
                 // User chose the "Favorite" action, mark the current item
                 // as a favorite...
-
+                mMap.clear();
                 if (!isBusRouteShown) {
 
                     if (polyline != null) {
-                        polyline.setVisible(true);
+                        mMap.addPolyline(lineOptions);
                         item.setIcon(R.drawable.ic_bus_selected);
                         isBusRouteShown = true;
                     } else {
@@ -380,6 +392,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         item.setIcon(getResources().getDrawable(R.drawable.ic_bus_deselected, this.getTheme()));
                     }
+
                     polyline.setVisible(false);
                     item.setIcon(R.drawable.ic_bus_deselected);
                     isBusRouteShown = false;
@@ -602,14 +615,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         @Override
         protected void onPostExecute(List<List<HashMap<String, String>>> result) {
             ArrayList<LatLng> points;
-            PolylineOptions lineOptions = null;
+            lineOptions = null;
 
             // Traversing through all the routes
             if (result != null) {
                 for (int i = 0; i < result.size(); i++) {
                     points = new ArrayList<>();
                     lineOptions = new PolylineOptions();
-
                     // Fetching i-th route
                     List<HashMap<String, String>> path = result.get(i);
 
