@@ -215,7 +215,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     JSONArray jsonArray = new JSONArray(response);
                     JSONObject jsonObject;
                     int i;
-                    String locationName, locationDescription, latitude, longitude;
+                    String locationName, locationDescription, latitude = "12.991780", longitude = "80.233772";
                     LatLng latLong;
                     for (i = 0; i < jsonArray.length(); i++) {
                         jsonObject = jsonArray.getJSONObject(i);
@@ -231,9 +231,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                 .position(latLong));
                     }
                     if (pDialog.isShowing()) pDialog.dismiss();
-                    LatLng latLngGC = new LatLng(12.991780, 80.233772);
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 14));
-
+                    LatLng latLngGC;
+                    if (jsonArray.length() == 1) {
+                        latLngGC = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 18));
+                    } else {
+                        latLngGC = new LatLng(12.991780, 80.233772);
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 14));
+                    }
                 } catch (JSONException e) {
 
                     if (pDialog.isShowing()) pDialog.dismiss();
