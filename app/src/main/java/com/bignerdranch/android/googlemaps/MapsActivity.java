@@ -206,7 +206,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         builder.scheme("https")//https://students.iitm.ac.in/studentsapp/map/get_location.php?
                 .authority("students.iitm.ac.in")
                 .appendPath("studentsapp")
-                .appendPath("map")
+                .appendPath("heritage")
                 .appendPath("get_location.php")
                 .appendQueryParameter("locname", query);
         String url = builder.build().toString();
