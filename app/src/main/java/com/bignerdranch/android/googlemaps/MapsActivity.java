@@ -5,6 +5,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -31,9 +32,11 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -72,6 +75,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,
@@ -89,21 +93,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     Polyline polyline;
     PolylineOptions lineOptions;
     Boolean isVisible = false, isBusRouteShown = false, isDownloaded = false;
+    Integer trailCount = 0;
     Toolbar myToolbar;
     Menu myMenu;
     CoordinatorLayout coordinatorLayout;
     ArrayList<String> placesArray;
     ProgressDialog progress, pDialog;
-    Context context;
     float searchBarPosX, searchBarPosY;
     private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
     private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
+    PrefManager prefManager;
+    private Context context;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-
         myToolbar = (Toolbar) findViewById(R.id.my_toolbar);
         setSupportActionBar(myToolbar);
         context = this;
@@ -229,15 +234,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     for (i = 0; i < jsonArray.length(); i++) {
                         jsonObject = jsonArray.getJSONObject(i);
                         locationName = jsonObject.getString("locname");
-                        locationDescription = jsonObject.getString("locdesc");
+                        String location_url = jsonObject.getString("file_name");
+                        String location_trail = jsonObject.getString("trail");
                         latitude = jsonObject.getString("lat");
                         longitude = jsonObject.getString("long");
 
                         latLong = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
-                        mMap.addMarker(new MarkerOptions()
+                        Marker currMarker = mMap.addMarker(new MarkerOptions()
                                 .title(locationName)
-                                .snippet(locationDescription)
+                                .snippet("Click for more info...")
                                 .position(latLong));
+                        currMarker.setTag(location_url);
                     }
                     if (pDialog.isShowing()) pDialog.dismiss();
                     LatLng latLngGC;
@@ -247,15 +254,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     } else {
                         latLngGC = new LatLng(12.991780, 80.233772);
                         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 14));
-                        Snackbar snackbar = Snackbar
-                                .make(coordinatorLayout, "Showing all related results...", Snackbar.LENGTH_LONG);
+                        Snackbar snackbar = Snackbar.make(coordinatorLayout, "Showing all related results...", Snackbar.LENGTH_LONG);
                         snackbar.show();
                     }
                 } catch (JSONException e) {
 
                     if (pDialog.isShowing()) pDialog.dismiss();
-                    Snackbar snackbar = Snackbar
-                            .make(coordinatorLayout, "No result found!", Snackbar.LENGTH_LONG);
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, "No result found!", Snackbar.LENGTH_LONG);
                     snackbar.show();
                     e.printStackTrace();
 
@@ -268,8 +273,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onErrorResponse(VolleyError error) {
                 if (pDialog.isShowing()) pDialog.dismiss();
                 VolleyLog.d("VolleyResponseError", error);
-                Snackbar snackbar = Snackbar
-                        .make(coordinatorLayout, "Couldn't connect to the server.", Snackbar.LENGTH_LONG);
+                Snackbar snackbar = Snackbar.make(coordinatorLayout, "Couldn't connect to the server.", Snackbar.LENGTH_LONG);
                 snackbar.show();
 
             }
@@ -285,7 +289,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         builder.scheme("https")//https://students.iitm.ac.in/studentsapp/map/get_names.php
                 .authority("students.iitm.ac.in")
                 .appendPath("studentsapp")
-                .appendPath("map")
+                .appendPath("heritage")
                 .appendPath("get_names.php");
         final String url = builder.build().toString();
 
@@ -312,8 +316,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             android.R.layout.simple_dropdown_item_1line, placesArray);
                     searchField.setAdapter(adapter);
                 } catch (JSONException e) {
-                    Snackbar snackbar = Snackbar
-                            .make(coordinatorLayout, "Error getting data, try again later...", Snackbar.LENGTH_LONG);
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, "Error getting data, try again later...", Snackbar.LENGTH_LONG);
                     snackbar.show();
                     e.printStackTrace();
 
@@ -343,10 +346,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.intro_btn :{
+                Intent i = new Intent(MapsActivity.this, WelcomeActivity.class);
+                i.putExtra("start","true");
+                startActivity(i);
+                // close this activity
+                finish();
+            }
             case R.id.search_go_btn: {
 
                 if (isVisible) {
                     animateSearchOut();
+                    //item.setIcon(R.drawable.ic_search_deselected);
+                    trailCount = 0;
                 } else {
                     if (!isDownloaded) getSuggestions();
                     animateSearchIn();
@@ -354,11 +366,34 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 return true;
             }
-            case R.id.action_settings:
-                // User chose the "Settings" item, show the app settings UI...
+            case R.id.trail_btn: {
+
+                if (trailCount == 0) {
+                    item.setIcon(R.drawable.ic_trail_selected);
+                    trailCount =1;
+                    startTrail(trailCount);
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, "Showing Trail (1/2)", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
+                else if(trailCount == 1){
+                    item.setIcon(R.drawable.ic_trail_selected1);
+                    trailCount =2;
+                    startTrail(trailCount);
+                    Snackbar snackbar = Snackbar.make(coordinatorLayout, "Showing Trail (2/2)", Snackbar.LENGTH_LONG);
+                    snackbar.show();
+                }
+                else {
+                    if (!isDownloaded) getSuggestions();
+                    item.setIcon(R.drawable.ic_trail_deselected);
+                    trailCount = 0;
+                    mMap.clear();
+                }
+
                 return true;
-
-
+            }
+//            case R.id.action_settings:
+//                // User chose the "Settings" item, show the app settings UI...
+//                return true;
             case R.id.bus_route:
                 // User chose the "Favorite" action, mark the current item
                 // as a favorite...
@@ -406,6 +441,76 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return super.onOptionsItemSelected(item);
 
         }
+    }
+
+    private void startTrail(final Integer trailCount) {
+// Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        final String url = getString(R.string.trail_url)+trailCount;
+        // Request a string response from the provided URL.
+        //Toast.makeText(MapsActivity.this,url, Toast.LENGTH_SHORT).show();
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        try {
+                            mMap.clear();
+                            //Toast.makeText(MapsActivity.this,response, Toast.LENGTH_SHORT).show();
+                            JSONArray jsonArray = new JSONArray(response);
+                            JSONObject jsonObject;
+                            int i;
+                            String locationName, latitude = "12.991780", longitude = "80.233772";
+                            LatLng latLong;
+                            for (i = 0; i < jsonArray.length(); i++) {
+                                jsonObject = jsonArray.getJSONObject(i);
+                                locationName = jsonObject.getString("locname");
+                                String location_url = jsonObject.getString("file_name");
+                                latitude = jsonObject.getString("lat");
+                                longitude = jsonObject.getString("long");
+
+                                latLong = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
+                                Marker currMarker = mMap.addMarker(new MarkerOptions()
+                                        .title(locationName)
+                                        .snippet("Click for more info...")
+                                        .position(latLong));
+                                currMarker.setTag(location_url);
+                            }
+                            if (pDialog.isShowing()) pDialog.dismiss();
+                            LatLng latLngGC;
+                            if (jsonArray.length() == 1) {
+                                latLngGC = new LatLng(Double.parseDouble(latitude), Double.parseDouble(longitude));
+                                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngGC, 18));
+                            } else {
+                                LatLng latLngOAT = new LatLng(12.989281, 80.233585);
+                                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLngOAT, 16));
+//                                Snackbar snackbar = Snackbar.make(coordinatorLayout, "Showing all related results...", Snackbar.LENGTH_LONG);
+//                                snackbar.show();
+                            }
+                        } catch (JSONException e) {
+
+                            if (pDialog.isShowing()) pDialog.dismiss();
+                            Snackbar snackbar = Snackbar.make(coordinatorLayout, "No result found!", Snackbar.LENGTH_LONG);
+                            snackbar.show();
+                            //.makeText(MapsActivity.this,String.valueOf(e),Toast.LENGTH_SHORT).show();
+                            e.printStackTrace();
+
+                        }
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Toast.makeText(MapsActivity.this, error.toString(), Toast.LENGTH_LONG).show();
+            }
+        });
+        // Add the request to the RequestQueue.
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
+        requestQueue.add(stringRequest);
+
+        int MY_SOCKET_TIMEOUT_MS = 10000;
+        stringRequest.setRetryPolicy(new DefaultRetryPolicy(
+                MY_SOCKET_TIMEOUT_MS,
+                DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
     }
 
     private void animateSearchOut() {
@@ -456,6 +561,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(testGC, 17));
 
         mMap = googleMap;
+        // Set a listener for info window events.
+        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+                String url_link =(String)marker.getTag();
+                //Toast.makeText(MapsActivity.this,url_link,Toast.LENGTH_LONG).show();
+                Intent i = new Intent(MapsActivity.this, AboutActivity.class);
+                i.putExtra("url",url_link);
+                startActivity(i);
+            }
+        });
+
         //Initialize Google Play Services
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this,
@@ -470,6 +587,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
     }
+
 
     private String getUrl(LatLng origin, LatLng dest) {
 
@@ -532,8 +650,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             if (progress.isShowing()) {
                 progress.dismiss();
                 isBusRouteShown = false;
-                Snackbar snackbar = Snackbar
-                        .make(coordinatorLayout, "Couldn't connect to internet.", Snackbar.LENGTH_LONG);
+                Snackbar snackbar = Snackbar.make(coordinatorLayout, "Couldn't connect to internet.", Snackbar.LENGTH_LONG);
                 snackbar.show();
             }
         } finally {
@@ -703,16 +820,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         //Place current location marker
-        LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+        LatLng latLng = new LatLng(12.9905663,80.2322976);
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(latLng);
-        markerOptions.title("Current Position");
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA));
+        markerOptions.title("Heritage Center");
+        markerOptions.snippet("Click for more info...");
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
         mCurrLocationMarker = mMap.addMarker(markerOptions);
+        mCurrLocationMarker.showInfoWindow();
+        mCurrLocationMarker.setTag("about.html");
 
         //move map camera
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-        mMap.animateCamera(CameraUpdateFactory.zoomTo(11));
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
 
         //stop location updates
         if (mGoogleApiClient != null) {
@@ -720,6 +840,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
     }
+
+
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {

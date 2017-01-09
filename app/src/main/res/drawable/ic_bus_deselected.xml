@@ -2,6 +2,6 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <item android:drawable="@drawable/bg_deselected"/>
-    <item android:drawable="@drawable/ic_directions_bus_black_24dp" />
+    <item android:drawable="@drawable/ic_directions_bus_white_24dp" />
 
 </layer-list>

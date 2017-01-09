@@ -4,21 +4,23 @@
     <!-- "Mark Favorite", should appear as action button if possible -->
     <item
         android:id="@+id/bus_route"
-        android:icon="@drawable/ic_directions_bus_black_24dp"
+        android:icon="@drawable/ic_directions_bus_white_24dp"
         android:title="@string/bus_route"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="always" />
     <item
         android:id="@+id/search_go_btn"
         android:checkable="false"
-        android:icon="@drawable/ic_search_black_24dp"
+        android:icon="@drawable/ic_search_white_24dp"
         android:title="@string/search_title"
         app:showAsAction="always" />
-
-
-    <!-- Settings, should always be in the overflow -->
     <item
-        android:id="@+id/action_settings"
-        android:title="@string/action_settings"
-        app:showAsAction="never" />
-
+        android:id="@+id/trail_btn"
+        android:checkable="false"
+        android:icon="@drawable/ic_directions_walk_white_24dp"
+        android:title="@string/trail"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/intro_btn"
+        android:checkable="false"
+        android:title="@string/intro"/>
 </menu>

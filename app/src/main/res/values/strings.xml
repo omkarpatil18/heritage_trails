@@ -1,8 +1,21 @@
 <resources>
     <string name="app_name">Heritage trails</string>
-    <string name="title_activity_maps">Heritage trails</string>
+    <string name="title_activity_maps">Heritage Trails</string>
     <string name="search_hint">Name of the place</string>
     <string name="search_title">Search a location</string>
     <string name="bus_route">Show Bus Route</string>
     <string name="action_settings">Settings</string>
+    <string name="trail">Start a trail</string>
+    <string name="about_url">"https://students.iitm.ac.in/studentsapp/heritage/webviews/"</string>
+    <string name="trail_url">"https://students.iitm.ac.in/studentsapp/heritage/start_trail.php?trail_id="</string>
+    <string name="next">NEXT</string>
+    <string name="skip">SKIP</string>
+    <string name="start">GOT IT</string>
+    <string name="slide_1_title">Heritage Trails</string>
+    <string name="slide_1_desc">The Heritage Centre has identified two trails that take you through the living heritage of IIT Madras.Walking along these trails , you can take an informed look at the institute. You could cover each in around half an hour of steady walking , or you could stop frequently and spend much more time because there is much to see.</string>
+    <string name="slide_2_title">Trail 1</string>
+    <string name="slide_2_desc">The first phase of construction in the campus took place in the 1960s. This trails winds through some of the structures that were built in this period.</string>
+    <string name="slide_3_title">Trail 2</string>
+    <string name="slide_3_desc">Having been created essentially in a forest , the campus of IIT Madras is home  to a great many wild animals and to a rich assemblage of plants.This trail leads away from the constructed areas and offers chances of viewing some of these plants and animals.</string>
+    <string name="intro">Introduction</string>
 </resources>
