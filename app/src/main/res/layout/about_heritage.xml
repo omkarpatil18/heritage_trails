@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context=".AboutActivity">
+    tools:context=".MySingleton$AboutActivity">
 
     <LinearLayout android:orientation="vertical"
         android:layout_height="match_parent"

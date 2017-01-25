@@ -1,25 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
-
-    <ImageView
-        android:id="@+id/imgLogo"
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/base"
-        android:adjustViewBounds="true"
-        android:layout_centerHorizontal="true" />
+        android:background="@color/colorSplash"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:weightSum="1">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:textSize="14sp"
-        android:textColor="#454545"
-        android:gravity="center_horizontal"
-        android:layout_alignParentBottom="true"
-        android:text="Copyright \u00a9 Institute Mobops"
-        android:textStyle="normal|bold" />
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/base"
+            android:id="@+id/imageView2"
+            android:layout_weight="0.78" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="43dp"
+            android:textSize="14sp"
+            android:textColor="#454545"
+            android:gravity="center_horizontal"
+            android:text="Copyright \u00a9 Institute Mobops"
+            android:textStyle="normal|bold"
+            android:id="@+id/textView"
+            android:paddingTop="10dp"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true" />
 </LinearLayout>

@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "303437772018",
+    "firebase_url": "https://heritage-trails.firebaseio.com",
+    "project_id": "heritage-trails",
+    "storage_bucket": "heritage-trails.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:303437772018:android:427689bcbcb4f456",
+        "android_client_info": {
+          "package_name": "in.ac.iitm.students.heritagetrails"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "303437772018-1p4bs4cpdcn04oluef8f9a7tdi4d0u17.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBpMXRPZsMOdEWSI_p1BYv0kAZO2xZ_-9I"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
