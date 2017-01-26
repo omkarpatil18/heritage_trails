@@ -60,7 +60,6 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.maps.android.clustering.ClusterManager;
-import com.google.maps.android.clustering.view.DefaultClusterRenderer;
 import com.google.maps.android.kml.KmlLayer;
 
 import org.json.JSONArray;
@@ -73,6 +72,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static in.ac.iitm.students.heritagetrails.IITMBusStops.*;
+
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
@@ -81,12 +82,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private GoogleMap mMap;
     private int trailCount=0;
-    private ClusterManager<ClusterMarkerLocation> mClusterManager=null;
+    private ClusterManager<ClusterMarkerLocation> mBusStopClusterManager =null;
+    private ClusterManager<ClusterMarkerLocation> mTrailClusterManager =null;
     private GoogleApiClient mGoogleApiClient;
     private Location mLastLocation;
-    private ArrayList<Marker> mTrail1Markers = new ArrayList<>(), mTrail2Markers = new ArrayList<>();
+    private ArrayList<Marker> mTrail_1_MarkerArray = new ArrayList<>(), mTrail_2_MarkerArray = new ArrayList<>();
+    private ArrayList<ClusterMarkerLocation> mTrailClusterMarkerArray = new ArrayList<>();
     private Marker mCurrLocationMarker;
-    private ArrayList<MarkerOptions> mTrail1MarkerOptions= new ArrayList<>(), mTrail2MarkerOptions= new ArrayList<>();
+    private ArrayList<MarkerOptions> mTrail_1_MarkerOptionsArray = new ArrayList<>(), mTrail_2_MarkerOptionsArray = new ArrayList<>();
     private MarkerOptions mHeritageCenterMarkerOptions;
     private LocationRequest mLocationRequest;
     private AutoCompleteTextView searchField;
@@ -102,22 +105,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private float searchBarPosX, searchBarPosY;
     private KmlLayer layer=null;
     private String url;
-    private ArrayList<Marker> searchResultMarkers= new ArrayList<>();
-    private ArrayList<MarkerOptions> searchResultMarkerOptions= new ArrayList<>();
-
-    private static final LatLng MAIN_GATE = new LatLng(13.005976, 80.242486);
-    private static final LatLng JAM_BUS_STOP = new LatLng(12.986634, 80.238757);
-    private static final LatLng GAJENDRA_CIRCLE_BUS_STOP = new LatLng(12.991780, 80.233772);
-    private static final LatLng HSB_BUS_STOP = new LatLng(12.990925, 80.231896);
-    private static final LatLng VELACHERY_GATE = new LatLng(12.988461, 80.223328);
-    private static final LatLng BT_BUS_STOP= new LatLng(12.989977, 80.227707);
-    private static final LatLng CRC_BUS_STOP = new LatLng(12.988204, 80.230125);
-    private static final LatLng TGH_BUS_STOP = new LatLng(12.986574, 80.233254);
-    private static final LatLng NARMADA_BUS_STOP = new LatLng(12.986473, 80.235324);
-
-    private static final LatLng FOURTH_CROSS_STREET_BUS_STOP = new LatLng(12.99599484, 80.23595825);
-    private static final LatLng KV_BUS_STOP = new LatLng(12.99398019, 80.23437828);
-    private static final LatLng VANVANI_BUS_STOP = new LatLng(12.9987747, 80.23919707 );
+    private ArrayList<Marker> searchResultMarkerArray = new ArrayList<>();
+    private ArrayList<MarkerOptions> searchResultMarkerOptionsArray = new ArrayList<>();
+    private LatLng heritage_center =new LatLng(12.9905663,80.2322976);
+    private ArrayList<Marker> trailMarkers = new ArrayList<>();
+    private ArrayList<MarkerOptions> trailMarkerOptions= new ArrayList<>();
 
 
 
@@ -133,7 +125,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         progress = new ProgressDialog(this);
         coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coord_layout);
 
-        PackageInfo pInfo = null;
+        PackageInfo pInfo;
         try {
             pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String version = pInfo.versionName;
@@ -265,7 +257,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     public void removeSearchResult(){
-        for(Marker marker:searchResultMarkers){
+        for(Marker marker: searchResultMarkerArray){
             marker.remove();
         }
     }
@@ -318,8 +310,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     String locationName, locationDescription, latitude = "12.991780", longitude = "80.233772";
                     LatLng latLong;
 
-                    if(searchResultMarkers!=null) searchResultMarkers.clear();
-                    if(searchResultMarkerOptions!=null) searchResultMarkerOptions.clear();
+                    if(searchResultMarkerArray !=null) searchResultMarkerArray.clear();
+                    if(searchResultMarkerOptionsArray !=null) searchResultMarkerOptionsArray.clear();
 
                     for (i = 0; i < jsonArray.length(); i++) {
                         jsonObject = jsonArray.getJSONObject(i);
@@ -337,8 +329,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         Marker currMarker = mMap.addMarker(markerOption);
                         currMarker.setTag(location_url);
 
-                        searchResultMarkerOptions.add(markerOption);
-                        searchResultMarkers.add(currMarker);
+                        searchResultMarkerOptionsArray.add(markerOption);
+                        searchResultMarkerArray.add(currMarker);
 
                     }
 
@@ -431,6 +423,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         MySingleton.getInstance(context).addToRequestQueue(jsonObjReq);
     }
 
+
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
@@ -466,6 +460,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     item.setIcon(R.drawable.ic_trail_selected);
                     trailCount =1;
                     isTrail1Shown=true;
+                    mMap.clear();
+                    showCampusBoundary();
                     startTrail(trailCount);
                     Snackbar snackbar = Snackbar.make(coordinatorLayout, "Showing Trail (1/2)", Snackbar.LENGTH_LONG);
                     snackbar.show();
@@ -473,6 +469,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 else if(trailCount == 1){
                     item.setIcon(R.drawable.ic_trail_selected1);
                     trailCount =2;
+                    destroyCLusterer();
                     isTrail1Shown=false;
                     isTrail2Shown=true;
                     startTrail(trailCount);
@@ -484,9 +481,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     item.setIcon(R.drawable.ic_trail_deselected);
                     trailCount = 0;
                     isTrail2Shown=false;
-                    for(Marker marker: mTrail2Markers){
-                        marker.remove();
-                    }
+                    destroyCLusterer();
                 }
 
                 return true;
@@ -501,6 +496,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     if (polyline != null) {
                         mMap.addPolyline(lineOptions);
+                        invalidateOptionsMenu();
                         item.setIcon(R.drawable.ic_bus_selected);
                         setUpClusterer();
                         showCampusBoundary();
@@ -515,6 +511,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         buildDirectionsUri();
                         setUpClusterer();
                         showBusRoute();
+                        invalidateOptionsMenu();
 
                     }
                     isBusRouteShown = true;
@@ -528,30 +525,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     item.setIcon(R.drawable.ic_bus_deselected);
                     isBusRouteShown = false;
 
-                    mMap.clear();
-                    mMap.setOnCameraIdleListener(null);
-                    mMap.setOnMarkerClickListener(null);
-                    showCampusBoundary();
-
-                    searchResultMarkers=new ArrayList<>();
+                    destroyCLusterer();
+                    searchResultMarkerArray =new ArrayList<>();
                     if(isSearchResultShown){
-                        for(MarkerOptions markerOptions : searchResultMarkerOptions){
-                            searchResultMarkers.add(mMap.addMarker(markerOptions));
-                        }
-                    }
-                    mTrail1Markers=new ArrayList<>();
-                    mTrail2Markers= new ArrayList<>();
-                    if(isTrail1Shown){
-                        for(MarkerOptions markerOptions:mTrail1MarkerOptions){
-                            mTrail1Markers.add(mMap.addMarker(markerOptions));
-                        }
-                    }else if(isTrail2Shown){
-                        for(MarkerOptions markerOptions:mTrail2MarkerOptions){
-                            mTrail1Markers.add(mMap.addMarker(markerOptions));
+                        for(MarkerOptions markerOptions : searchResultMarkerOptionsArray){
+                            searchResultMarkerArray.add(mMap.addMarker(markerOptions));
                         }
                     }
 
-                    if(!mCurrLocationMarker.isVisible()){
+                    if(mCurrLocationMarker.isVisible()){
                         mMap.addMarker(mHeritageCenterMarkerOptions);
                     }
 
@@ -565,6 +547,23 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 return super.onOptionsItemSelected(item);
 
         }
+    }
+
+
+    private void destroyCLusterer(){
+        mMap.clear();
+        mMap.setOnCameraIdleListener(null);
+        mMap.setOnMarkerClickListener(null);
+        showCampusBoundary();
+        invalidateOptionsMenu();
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        menu.findItem(R.id.bus_route).setIcon(R.drawable.ic_bus_deselected);
+        menu.findItem(R.id.trail_btn).setIcon(R.drawable.ic_trail_deselected);
+
+        return super.onPrepareOptionsMenu(menu);
     }
 
     private void showCampusBoundary(){
@@ -592,8 +591,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void buildDirectionsUri() {
 
-        LatLng origin = MAIN_GATE;
-        LatLng dest = JAM_BUS_STOP;
+        LatLng origin = main_gate;
+        LatLng dest = jam_bus_stop;
 
         String str_origin = origin.latitude + "," + origin.longitude;
 
@@ -624,9 +623,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void startTrail(final Integer trailCount) {
 
+        trailMarkers = new ArrayList<>();
+        trailMarkerOptions= new ArrayList<>();
+        mTrailClusterMarkerArray= new ArrayList<>();
+
         final String url = getString(R.string.trail_url)+trailCount;
-        final ArrayList<Marker> trailMarkers = new ArrayList<>();
-        final ArrayList<MarkerOptions> trailMarkerOptions= new ArrayList<>();
         // Request a string response from the provided URL.
         //Toast.makeText(MapsActivity.this,url, Toast.LENGTH_SHORT).show();
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
@@ -634,9 +635,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     @Override
                     public void onResponse(String response) {
                         try {
-                            for(Marker marker: mTrail1Markers){
-                                marker.remove();
-                            }
+
                             //Toast.makeText(MapsActivity.this,response, Toast.LENGTH_SHORT).show();
                             JSONArray jsonArray = new JSONArray(response);
                             JSONObject jsonObject;
@@ -655,12 +654,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                         .title(locationName)
                                         .snippet("Click for more info...")
                                         .position(latLong);
-                                Marker currMarker = mMap.addMarker(markerOptions);
+
+                                // BAD CODE
+                                Marker currMarker = mMap.addMarker(markerOptions.visible(false));
+                                // BAD CODE
+
                                 currMarker.setTag(location_url);
                                 trailMarkerOptions.add(markerOptions);
                                 trailMarkers.add(currMarker);
+                                mTrailClusterMarkerArray.add(new ClusterMarkerLocation(latLong,location_url));
 
                             }
+                            setUpClusterer(trailMarkerOptions);
                             if (pDialog.isShowing()) pDialog.dismiss();
                             LatLng latLngGC;
                             if (jsonArray.length() == 1) {
@@ -673,11 +678,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 //                                snackbar.show();
                             }
                             if(trailCount==1){
-                                mTrail1Markers =trailMarkers;
-                                mTrail1MarkerOptions= trailMarkerOptions;
+                                mTrail_1_MarkerArray =trailMarkers;
+                                mTrail_1_MarkerOptionsArray = trailMarkerOptions;
                             }else{
-                                mTrail2Markers =trailMarkers;
-                                mTrail2MarkerOptions= trailMarkerOptions;
+                                mTrail_2_MarkerArray =trailMarkers;
+                                mTrail_2_MarkerOptionsArray = trailMarkerOptions;
                             }
                         } catch (JSONException e) {
 
@@ -748,22 +753,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         LatLng testGC = new LatLng(12.991780, 80.233772);
 
-        googleMap.setMyLocationEnabled(true);
         googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(testGC, 17));
 
         mMap = googleMap;
         showCampusBoundary();
         // Set a listener for info window events.
-        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
-            @Override
-            public void onInfoWindowClick(Marker marker) {
-                String url_link =(String)marker.getTag();
-                //Toast.makeText(MapsActivity.this,url_link,Toast.LENGTH_LONG).show();
-                Intent i = new Intent(MapsActivity.this, in.ac.iitm.students.heritagetrails.MySingleton.AboutActivity.class);
-                i.putExtra("url",url_link);
-                startActivity(i);
-            }
-        });
 
         //Initialize Google Play Services
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -771,12 +765,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     android.Manifest.permission.ACCESS_FINE_LOCATION)
                     == PackageManager.PERMISSION_GRANTED) {
                 buildGoogleApiClient();
-                mMap.setMyLocationEnabled(true);
             }
         } else {
             buildGoogleApiClient();
-            mMap.setMyLocationEnabled(false);
         }
+
+        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+
+                if(marker.getPosition()==heritage_center){
+                    String url_link =(String)marker.getTag();
+                    //Toast.makeText(MapsActivity.this,url_link,Toast.LENGTH_LONG).show();
+                    Intent i = new Intent(MapsActivity.this, in.ac.iitm.students.heritagetrails.MySingleton.AboutActivity.class);
+                    i.putExtra("url",url_link);
+                    startActivity(i);
+
+                }
+            }
+        });
 
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
 
@@ -930,9 +937,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         //Place current location marker
-        LatLng latLng = new LatLng(12.9905663,80.2322976);
         mHeritageCenterMarkerOptions = new MarkerOptions();
-        mHeritageCenterMarkerOptions.position(latLng);
+        mHeritageCenterMarkerOptions.position(heritage_center);
         mHeritageCenterMarkerOptions.title("Heritage Center");
         mHeritageCenterMarkerOptions.snippet("Click for more info...");
         mHeritageCenterMarkerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
@@ -941,7 +947,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mCurrLocationMarker.setTag("about.html");
 
         //move map camera
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(heritage_center));
         mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
 
         //stop location updates
@@ -970,6 +976,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // Show an explanation to the user *asynchronously* -- don't block
                 // this thread waiting for the user's response! After the user
                 // sees the explanation, try again to request the permission.
+                Snackbar snackbar = Snackbar.make(coordinatorLayout, "Denying this permission will cause your location to be absent on the map.", Snackbar.LENGTH_LONG);
+                snackbar.show();
 
                 //Prompt the user once explanation has been shown
                 ActivityCompat.requestPermissions(this,
@@ -1014,7 +1022,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     // Permission denied, Disable the functionality that depends on this permission.
 
-                    Toast.makeText(this, "permission denied", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show();
+                    mMap.setMyLocationEnabled(false);
                 }
                 return;
             }
@@ -1028,9 +1037,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void setUpClusterer() {
 
-        if(mClusterManager==null){
+        if(mBusStopClusterManager ==null){
             // Initialize the manager with the context and the map.
-            mClusterManager = new ClusterManager<>(this, mMap);
+            mBusStopClusterManager = new ClusterManager<>(this, mMap);
+
+            // Add cluster items (markers) to the cluster manager.
+
+            addBusStopMarkers();
+
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(gajendra_circle_bus_stop, 14));
+        // Point the map's listeners at the listeners implemented by the cluster
+        // manager.
+        mMap.setOnCameraIdleListener(mBusStopClusterManager);
+        mMap.setOnMarkerClickListener(mBusStopClusterManager);
+        mBusStopClusterManager.setRenderer(new OwnBusStopIconRendered(this, mMap, mBusStopClusterManager));
+
+    }
+
+    private void setUpClusterer(ArrayList<MarkerOptions> trailMarkerOptionsArray) {
+
+        if(mTrailClusterManager ==null) {
+            // Initialize the manager with the context and the map.
+            mTrailClusterManager = new ClusterManager<>(this, mMap);
+        }
 
 
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -1043,116 +1084,54 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 // for ActivityCompat#requestPermissions for more details.
                 return;
             }
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(GAJENDRA_CIRCLE_BUS_STOP, 14));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(gajendra_circle_bus_stop, 12));
 
             // Add cluster items (markers) to the cluster manager.
-            addItems();
-        }
+
+        mTrailClusterManager.clearItems();
+        mTrailClusterManager.addItems(mTrailClusterMarkerArray);
+
+        mTrailClusterManager
+                .setOnClusterItemInfoWindowClickListener(new ClusterManager.OnClusterItemInfoWindowClickListener<ClusterMarkerLocation>() {
+                    @Override
+                    public void onClusterItemInfoWindowClick(ClusterMarkerLocation item) {
+                        Toast.makeText(context, "duhhhhh", Toast.LENGTH_SHORT).show();
+                        String url_link =item.getUrl();
+                        //Toast.makeText(MapsActivity.this,url_link,Toast.LENGTH_LONG).show();
+                        Intent i = new Intent(MapsActivity.this, in.ac.iitm.students.heritagetrails.MySingleton.AboutActivity.class);
+                        i.putExtra("url",url_link);
+                        startActivity(i);
+                    }
+                });
 
         // Point the map's listeners at the listeners implemented by the cluster
         // manager.
-        mMap.setOnCameraIdleListener(mClusterManager);
-        mMap.setOnMarkerClickListener(mClusterManager);
-        mClusterManager.setRenderer(new OwnIconRendered(this, mMap, mClusterManager));
+        mMap.setOnCameraIdleListener(mTrailClusterManager);
+        mMap.setOnMarkerClickListener(mTrailClusterManager);
+        mTrailClusterManager.setRenderer(new OwnTrailIconRendered(this, mMap, mTrailClusterManager,trailMarkerOptionsArray));
 
     }
 
 
-    private void addItems() {
+
+    private void addBusStopMarkers() {
 
         ArrayList<ClusterMarkerLocation> items = new ArrayList<>();
-        items.add(new ClusterMarkerLocation(MAIN_GATE));
-        items.add(new ClusterMarkerLocation(GAJENDRA_CIRCLE_BUS_STOP));
-        items.add(new ClusterMarkerLocation(HSB_BUS_STOP));
-        items.add(new ClusterMarkerLocation(BT_BUS_STOP));
-        items.add(new ClusterMarkerLocation(VELACHERY_GATE));
-        items.add(new ClusterMarkerLocation(CRC_BUS_STOP));
-        items.add(new ClusterMarkerLocation(TGH_BUS_STOP));
-        items.add(new ClusterMarkerLocation(JAM_BUS_STOP));
-        items.add(new ClusterMarkerLocation(NARMADA_BUS_STOP));
-        items.add(new ClusterMarkerLocation(FOURTH_CROSS_STREET_BUS_STOP));
-        items.add(new ClusterMarkerLocation(KV_BUS_STOP));
-        items.add(new ClusterMarkerLocation(VANVANI_BUS_STOP));
+        items.add(new ClusterMarkerLocation(main_gate));
+        items.add(new ClusterMarkerLocation(gajendra_circle_bus_stop));
+        items.add(new ClusterMarkerLocation(hsb_bus_stop));
+        items.add(new ClusterMarkerLocation(bt_bus_stop));
+        items.add(new ClusterMarkerLocation(velachery_gate));
+        items.add(new ClusterMarkerLocation(crc_bus_stop));
+        items.add(new ClusterMarkerLocation(tgh_bus_stop));
+        items.add(new ClusterMarkerLocation(jam_bus_stop));
+        items.add(new ClusterMarkerLocation(narmada_bus_stop));
+        items.add(new ClusterMarkerLocation(fourth_cross_street_bus_stop));
+        items.add(new ClusterMarkerLocation(kv_bus_stop));
+        items.add(new ClusterMarkerLocation(vanvani_bus_stop));
 
-        mClusterManager.addItems(items);
+        mBusStopClusterManager.addItems(items);
 
-    }
-
-    class OwnIconRendered extends DefaultClusterRenderer<ClusterMarkerLocation> {
-
-        public OwnIconRendered(Context context, GoogleMap map,
-                               ClusterManager<ClusterMarkerLocation> clusterManager) {
-            super(context, map, clusterManager);
-        }
-
-        @Override
-        protected void onBeforeClusterItemRendered(ClusterMarkerLocation item, MarkerOptions markerOptions) {
-
-
-            if (item.getPosition() == MAIN_GATE) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.6f)
-                        .title("Main Gate");
-            }
-            if (item.getPosition() == JAM_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.6f)
-                        .title("Jam Bus Stop");
-            }
-            if (item.getPosition() == GAJENDRA_CIRCLE_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("Gajendra Circle Bus Stop");
-            }
-            if (item.getPosition() == HSB_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("HSB Bus Stop");
-            }
-            if (item.getPosition() == VELACHERY_GATE) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.6f)
-                        .title("Velachery Gate");
-            }
-            if (item.getPosition() == CRC_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("CRC Bus Stop");
-            }
-            if (item.getPosition() == TGH_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("TGH Bus Stop");
-            }
-            if (item.getPosition() == NARMADA_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("Narmada Bus Stop");
-            }
-            if (item.getPosition() == BT_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("BT Bus Stop");
-            }
-            if (item.getPosition() == FOURTH_CROSS_STREET_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("4th Cross Street Bus Stop");
-            }
-            if (item.getPosition() == KV_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("KV Bus Stop");
-            }
-            if (item.getPosition() == VANVANI_BUS_STOP) {
-                markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_directions_bus_black_18dp))
-                        .alpha(0.5f)
-                        .title("Vanvani Bus Stop");
-            }
-
-
-            super.onBeforeClusterItemRendered(item, markerOptions);
-        }
     }
 
 }
